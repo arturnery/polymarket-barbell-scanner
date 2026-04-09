@@ -1,5 +1,4 @@
 {
-  "outputDirectory": "public",
   "rewrites": [
     { "source": "/markets", "destination": "/api/markets" }
   ]

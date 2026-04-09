@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket — Barbell Scanner</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a18; min-height: 100vh; }
+.container { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.header { margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 500; }
+.header p { font-size: 13px; color: #888; margin-top: 3px; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+@media (max-width: 600px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+.metric { background: #fff; border: 0.5px solid #e0e0dc; border-radius: 10px; padding: 0.875rem 1rem; }
+.metric-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+.metric-value { font-size: 22px; font-weight: 500; }
+.metric-value.green { color: #0f6e56; }
+.metric-value.amber { color: #854f0b; }
+.metric-value.small { font-size: 13px; padding-top: 3px; }
+.info-box { background: #E6F1FB; border: 0.5px solid #B5D4F4; border-radius: 10px; padding: 0.875rem 1rem; font-size: 13px; color: #185FA5; margin-bottom: 1.25rem; line-height: 1.65; }
+.controls { display: flex; gap: 8px; margin-bottom: 0.75rem; align-items: center; flex-wrap: wrap; }
+.tab-group { display: flex; border: 0.5px solid #ccc; border-radius: 8px; overflow: hidden; }
+.tab { padding: 7px 14px; font-size: 13px; cursor: pointer; background: transparent; border: none; color: #666; font-family: inherit; }
+.tab.active { background: #1a1a18; color: #fff; }
+.tab:hover:not(.active) { background: #f0f0ee; }
+select { font-size: 13px; padding: 7px 10px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; font-family: inherit; cursor: pointer; }
+.btn { font-size: 13px; padding: 7px 14px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-family: inherit; }
+.btn:hover { background: #f0f0ee; }
+.btn.primary { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+.btn.primary:hover { background: #333; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.status-bar { font-size: 12px; color: #888; margin-bottom: 0.75rem; display: flex; justify-content: space-between; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #1d9e75; margin-right: 5px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.35} }
+.section-label { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin: 1.25rem 0 0.5rem; display: flex; align-items: center; gap: 6px; }
+.section-count { background: #f0f0ee; border-radius: 20px; padding: 1px 7px; font-size: 11px; color: #666; font-weight: 500; }
+.card { background: #fff; border: 0.5px solid #e0e0dc; border-radius: 12px; padding: 0.875rem 1rem; margin-bottom: 7px; cursor: pointer; transition: border-color 0.12s; }
+.card:hover { border-color: #bbb; }
+.card.expanded { border-color: #1a1a18; }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.card-title { font-size: 13px; font-weight: 500; color: #1a1a18; line-height: 1.4; margin-top: 5px; }
+.card-right { text-align: right; flex-shrink: 0; }
+.ev { font-size: 17px; font-weight: 500; }
+.ev.green { color: #0f6e56; }
+.ev.orange { color: #993c1d; }
+.ev-sub { font-size: 11px; color: #999; margin-top: 1px; }
+.badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.badge-grind { background: #E6F1FB; color: #0C447C; }
+.badge-snipe { background: #FAECE7; color: #712B13; }
+.tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #f0f0ee; color: #666; margin-left: 4px; text-transform: capitalize; }
+.card-meta { display: flex; gap: 10px; margin-top: 7px; flex-wrap: wrap; }
+.meta-item { font-size: 11px; color: #999; }
+.meta-item strong { color: #555; font-weight: 500; }
+.prob-bar-wrap { height: 3px; background: #f0f0ee; border-radius: 2px; margin-top: 9px; }
+.prob-bar-fill { height: 100%; border-radius: 2px; }
+.bar-grind { background: #1d9e75; }
+.bar-snipe { background: #d85a30; }
+.detail-panel { border-top: 0.5px solid #f0f0ee; margin-top: 12px; padding-top: 12px; display: none; }
+.detail-panel.open { display: block; }
+.detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+@media(max-width:500px){.detail-grid{grid-template-columns:1fr 1fr;}}
+.d-item label { font-size: 11px; color: #999; display: block; margin-bottom: 2px; }
+.d-item span { font-size: 14px; font-weight: 500; }
+.rationale { font-size: 12px; color: #555; line-height: 1.65; background: #f9f9f7; border-radius: 8px; padding: 0.75rem; margin-bottom: 10px; }
+.action-row { display: flex; gap: 8px; }
+.action-row a, .action-row button { flex: 1; font-size: 12px; padding: 7px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-family: inherit; text-align: center; text-decoration: none; color: #1a1a18; display: block; }
+.action-row a:hover, .action-row button:hover { background: #f5f5f3; }
+.action-row a.pa { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+.action-row a.pa:hover { background: #333; }
+.loading-overlay { text-align: center; padding: 3rem 1rem; }
+.loading-overlay p { font-size: 14px; color: #888; margin-top: 12px; }
+.spinner { width: 28px; height: 28px; border: 2.5px solid #eee; border-top-color: #1a1a18; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-wrap { width: 220px; height: 3px; background: #eee; border-radius: 2px; margin: 14px auto 0; }
+.progress-fill { height: 100%; background: #1a1a18; border-radius: 2px; transition: width 0.4s; }
+.error-box { background: #fcebeb; border: 0.5px solid #f09595; border-radius: 10px; padding: 1.25rem; font-size: 13px; color: #791f1f; line-height: 1.7; }
+.error-box strong { display: block; margin-bottom: 6px; }
+.empty { text-align: center; padding: 3rem; color: #888; font-size: 14px; line-height: 2; }
+.raw-toggle { font-size: 11px; color: #999; cursor: pointer; text-decoration: underline; margin-top: 8px; display: inline-block; }
+.raw-box { font-size: 11px; font-family: monospace; background: #f5f5f3; border-radius: 6px; padding: 8px; margin-top: 6px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; display: none; color: #555; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div>
+      <h1>Polymarket — Barbell Scanner</h1>
+      <p>Estratégia ColdMath: grinding (alta prob.) + snipes assimétricos</p>
+    </div>
+    <button class="btn primary" id="scan-btn" onclick="runScan()">Escanear mercados</button>
+  </div>
+
+  <div class="info-box" id="info-box">
+    Clique em <strong>Escanear mercados</strong> para identificar oportunidades de <em>grinding</em> (comprar YES a 95–99¢ para yield estável) e <em>snipes</em> (bids de centavos com retorno assimétrico de 100–500x). O scanner tenta dados ao vivo do Polymarket e usa IA como fallback.
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Mercados analisados</div><div class="metric-value" id="m-total">—</div></div>
+    <div class="metric"><div class="metric-label">Oportunidades grind</div><div class="metric-value green" id="m-grind">—</div></div>
+    <div class="metric"><div class="metric-label">Snipes disponíveis</div><div class="metric-value amber" id="m-snipe">—</div></div>
+    <div class="metric"><div class="metric-label">Última análise</div><div class="metric-value small" id="m-time">—</div></div>
+  </div>
+
+  <div class="controls" id="controls" style="display:none">
+    <div class="tab-group">
+      <button class="tab active" onclick="setTab('all',this)">Todos</button>
+      <button class="tab" onclick="setTab('grind',this)">Grinding</button>
+      <button class="tab" onclick="setTab('snipe',this)">Snipes</button>
+    </div>
+    <select id="cat-filter" onchange="renderList()">
+      <option value="all">Todas categorias</option>
+      <option value="weather">Clima</option>
+      <option value="crypto">Cripto</option>
+      <option value="politics">Política</option>
+      <option value="sports">Esportes</option>
+      <option value="other">Outros</option>
+    </select>
+    <select id="sort-filter" onchange="renderList()">
+      <option value="default">Ordenar: padrão</option>
+      <option value="edge">Maior edge</option>
+      <option value="expiry">Expira em breve</option>
+    </select>
+    <button class="btn" onclick="runScan()" id="refresh-btn" style="margin-left:auto">↻ Novo scan</button>
+  </div>
+
+  <div class="status-bar" id="status-bar" style="display:none">
+    <span id="status-text"><span class="dot"></span>Pronto</span>
+    <span id="count-text"></span>
+  </div>
+
+  <div id="main-content"></div>
+
+</div>
+<script>
+let allOpps = [];
+let currentTab = 'all';
+let openPanel = null;
+
+// ── Buscar mercados via proxy ──
+async function tryFetchMarkets() {
+  try {
+    const r = await fetch('/markets', { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const arr = Array.isArray(d) ? d : (d.markets || d.data || []);
+    if (arr.length > 5) return arr;
+  } catch (e) {
+    throw new Error('Servidor indisponível: ' + e.message);
+  }
+  return null;
+}
+
+// ── Helpers de formatação ──
+function fmtV(v) {
+  const n = parseFloat(v || 0);
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+  return '$' + n.toFixed(0);
+}
+function fmtT(d) {
+  if (!d) return '—';
+  const diff = new Date(d) - Date.now();
+  if (diff < 0) return 'expirado';
+  const dy = Math.floor(diff / 864e5), hr = Math.floor((diff % 864e5) / 36e5);
+  return dy > 0 ? dy + 'd ' + hr + 'h' : hr + 'h';
+}
+function categorize(q) {
+  const t = (q || '').toLowerCase();
+  if (/temperature|weather|rain|snow|storm|celsius|fahrenheit|high temp|low temp|precip/.test(t)) return 'weather';
+  if (/bitcoin|btc|eth|ethereum|solana|crypto|doge|xrp|bnb|token|defi|price/.test(t)) return 'crypto';
+  if (/trump|biden|harris|election|president|congress|senate|fed |rate cut|tariff|white house|minister|policy/.test(t)) return 'politics';
+  if (/nba|nfl|nhl|mlb|soccer|champion|match|playoff|finals|super bowl|world cup|league|tournament/.test(t)) return 'sports';
+  return 'other';
+}
+
+// ── Processar mercados brutos sem IA ──
+function buildFromRaw(markets) {
+  const opps = [];
+  for (const m of markets) {
+    let prices = [], outcomes = [];
+    try { prices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : (m.outcomePrices || []); } catch (_) {}
+    try { outcomes = typeof m.outcomes === 'string' ? JSON.parse(m.outcomes) : (m.outcomes || []); } catch (_) {}
+    const liq = parseFloat(m.liquidity || 0);
+    const cat = categorize(m.question);
+    const eventSlug = (m.events && m.events[0] && m.events[0].slug) ? m.events[0].slug : (m.slug || m.marketSlug || '');
+    for (let i = 0; i < prices.length; i++) {
+      const p = parseFloat(prices[i]);
+      if (isNaN(p) || p <= 0) continue;
+      if (p >= 0.95 && p < 0.998) {
+        const y = ((1 - p) * 100).toFixed(2);
+        opps.push({
+          type: 'grind', title: m.question, outcome: outcomes[i] || 'Yes', prob: p,
+          volume: fmtV(m.volume), liquidity: fmtV(m.liquidity),
+          end_date: fmtT(m.endDate), slug: eventSlug,
+          category: cat,
+          edge_display: (p * 100).toFixed(1) + '¢',
+          sizing: '$' + Math.round(Math.min(10000, Math.max(200, liq * 0.07))).toLocaleString('pt-BR'),
+          rationale: 'Comprando YES a ' + (p * 100).toFixed(1) + '¢, o yield esperado e de ~' + y + '% sobre o capital. Atua como market maker de alta probabilidade. Risco: evento de cauda inesperado resolve NO e zera a posicao.'
+        });
+      } else if (p <= 0.004 && p > 0 && liq > 100) {
+        const mult = Math.round(1 / p);
+        const bid = Math.max(0.05, liq * 0.001);
+        opps.push({
+          type: 'snipe', title: m.question, outcome: outcomes[i] || 'Yes', prob: p,
+          volume: fmtV(m.volume), liquidity: fmtV(m.liquidity),
+          end_date: fmtT(m.endDate), slug: eventSlug,
+          category: cat,
+          edge_display: '+' + mult + 'x',
+          sizing: 'Bid de $' + bid.toFixed(2),
+          rationale: 'Retorno assintetrico de ~' + mult + 'x se resolver YES. Espalhe bids minimos em dezenas de snipes assim. A maioria vai a zero, mas 1 acerto paga todos os outros.'
+        });
+      }
+    }
+  }
+  opps.sort((a, b) => parseFloat(b.liquidity || '0') - parseFloat(a.liquidity || '0'));
+  return { total_analyzed: markets.length, opportunities: opps.slice(0, 55) };
+}
+
+function setProgress(pct, msg) {
+  const f = document.getElementById('progress-fill');
+  const m = document.getElementById('progress-msg');
+  if (f) f.style.width = pct + '%';
+  if (m) m.textContent = msg;
+}
+
+async function runScan() {
+  const btn = document.getElementById('scan-btn');
+  const rbtn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  if (rbtn) rbtn.disabled = true;
+  document.getElementById('info-box').style.display = 'none';
+  document.getElementById('controls').style.display = 'none';
+  document.getElementById('status-bar').style.display = 'none';
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="loading-overlay">
+      <div class="spinner"></div>
+      <p id="progress-msg">Iniciando scan...</p>
+      <div class="progress-wrap"><div class="progress-fill" id="progress-fill" style="width:5%"></div></div>
+    </div>`;
+
+  let result = null;
+  let lastRaw = '';
+
+  try {
+    setProgress(10, 'Tentando buscar mercados ao vivo do Polymarket...');
+    const markets = await tryFetchMarkets();
+
+    setProgress(60, markets.length + ' mercados encontrados. Filtrando oportunidades...');
+    result = buildFromRaw(markets);
+
+    setProgress(92, 'Processando resultados...');
+    allOpps = (result.opportunities || []).filter(o => o && o.type && o.title && o.prob);
+
+    const gc = allOpps.filter(o => o.type === 'grind').length;
+    const sc = allOpps.filter(o => o.type === 'snipe').length;
+    document.getElementById('m-total').textContent = result.total_analyzed || '~90';
+    document.getElementById('m-grind').textContent = gc;
+    document.getElementById('m-snipe').textContent = sc;
+    document.getElementById('m-time').textContent = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('controls').style.display = 'flex';
+    document.getElementById('status-bar').style.display = 'flex';
+    document.getElementById('status-text').innerHTML = '<span class="dot"></span>Análise concluída';
+    renderList();
+
+  } catch (err) {
+    document.getElementById('main-content').innerHTML = `
+      <div class="error-box">
+        <strong>Erro ao executar o scan</strong>
+        ${escapeHTML(err.message)}
+        <span class="raw-toggle" onclick="document.getElementById('raw-debug').style.display='block';this.style.display='none'">Ver detalhes técnicos</span>
+        <div class="raw-box" id="raw-debug">${escapeHTML(lastRaw.slice(0, 1000))}</div>
+      </div>`;
+  } finally {
+    btn.disabled = false;
+    if (rbtn) rbtn.disabled = false;
+  }
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setTab(t, el) {
+  currentTab = t;
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
+function pexp(s) {
+  if (!s || s === '—' || s === 'expirado') return 999999;
+  const d = s.match(/(\d+)d/), h = s.match(/(\d+)h/);
+  return (d ? parseInt(d[1]) * 24 : 0) + (h ? parseInt(h[1]) : 0);
+}
+
+function renderList() {
+  const cat = document.getElementById('cat-filter').value;
+  const sort = document.getElementById('sort-filter').value;
+  let filtered = allOpps.filter(o => {
+    if (currentTab === 'grind' && o.type !== 'grind') return false;
+    if (currentTab === 'snipe' && o.type !== 'snipe') return false;
+    if (cat !== 'all' && o.category !== cat) return false;
+    return true;
+  });
+  if (sort === 'edge') filtered.sort((a, b) => (b.type === 'grind' ? b.prob : 1 / b.prob) - (a.type === 'grind' ? a.prob : 1 / a.prob));
+  else if (sort === 'expiry') filtered.sort((a, b) => pexp(a.end_date) - pexp(b.end_date));
+
+  document.getElementById('count-text').textContent = filtered.length + ' oportunidade(s)';
+  const grind = filtered.filter(o => o.type === 'grind');
+  const snipe = filtered.filter(o => o.type === 'snipe');
+  let html = '';
+
+  if (grind.length && currentTab !== 'snipe') {
+    html += `<div class="section-label">Grinding — buy YES (95–99.8¢) <span class="section-count">${grind.length}</span></div>`;
+    grind.forEach(o => { html += cardHTML(o); });
+  }
+  if (snipe.length && currentTab !== 'grind') {
+    html += `<div class="section-label">Snipes assimétricos — bid limit (≤0.4¢) <span class="section-count">${snipe.length}</span></div>`;
+    snipe.forEach(o => { html += cardHTML(o); });
+  }
+  if (!html) html = '<div class="empty">Nenhuma oportunidade para este filtro.<br>Tente outra categoria ou rode um novo scan.</div>';
+  document.getElementById('main-content').innerHTML = html;
+}
+
+function cardHTML(o) {
+  const isG = o.type === 'grind';
+  const bw = Math.min(100, Math.round(o.prob * 100));
+  const did = 'dp' + Math.random().toString(36).slice(2, 9);
+  const polyUrl = o.slug ? 'https://polymarket.com/event/' + o.slug : 'https://polymarket.com/';
+  const safeTitle = escapeHTML(o.title || '');
+  const safeRationale = escapeHTML(o.rationale || '');
+  const safeOutcome = escapeHTML(o.outcome || 'Yes');
+
+  return `<div class="card" onclick="toggleDetail('${did}')">
+    <div class="card-top">
+      <div style="flex:1">
+        <span class="badge ${isG ? 'badge-grind' : 'badge-snipe'}">${isG ? 'GRIND' : 'SNIPE'}</span>
+        <span class="tag">${escapeHTML(o.category || 'other')}</span>
+        <div class="card-title">${safeTitle}</div>
+      </div>
+      <div class="card-right">
+        <div class="ev ${isG ? 'green' : 'orange'}">${escapeHTML(o.edge_display || '')}</div>
+        <div class="ev-sub">${isG ? 'probabilidade' : 'retorno potencial'}</div>
+      </div>
+    </div>
+    <div class="card-meta">
+      <span class="meta-item">Vol: <strong>${escapeHTML(o.volume || '—')}</strong></span>
+      <span class="meta-item">Liq: <strong>${escapeHTML(o.liquidity || '—')}</strong></span>
+      <span class="meta-item">Expira: <strong>${escapeHTML(o.end_date || '—')}</strong></span>
+      <span class="meta-item">Outcome: <strong>${safeOutcome}</strong></span>
+    </div>
+    <div class="prob-bar-wrap"><div class="prob-bar-fill ${isG ? 'bar-grind' : 'bar-snipe'}" style="width:${bw}%"></div></div>
+    <div class="detail-panel" id="${did}">
+      <div class="detail-grid">
+        <div class="d-item"><label>Probabilidade</label><span>${(parseFloat(o.prob) * 100).toFixed(2)}%</span></div>
+        <div class="d-item"><label>Sizing sugerido</label><span>${escapeHTML(o.sizing || '—')}</span></div>
+        <div class="d-item"><label>Expira em</label><span>${escapeHTML(o.end_date || '—')}</span></div>
+      </div>
+      <div class="rationale">${safeRationale}</div>
+      <div class="action-row">
+        <a href="${polyUrl}" target="_blank" class="pa">Abrir no Polymarket ↗</a>
+        <button onclick="event.stopPropagation(); copyTitle('${safeTitle.replace(/'/g, "\\'")}')">Copiar título</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleDetail(id) {
+  const el = document.getElementById(id);
+  const card = el?.closest('.card');
+  if (!el) return;
+  if (openPanel && openPanel !== el) {
+    openPanel.classList.remove('open');
+    openPanel.closest('.card')?.classList.remove('expanded');
+  }
+  el.classList.toggle('open');
+  card?.classList.toggle('expanded', el.classList.contains('open'));
+  openPanel = el.classList.contains('open') ? el : null;
+}
+
+function copyTitle(t) {
+  if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});
+}
+</script>
+</body>
+</html>
