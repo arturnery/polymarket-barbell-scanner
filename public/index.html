@@ -250,7 +250,7 @@ async function runScan() {
     const markets = await tryFetchMarkets();
 
     if (!markets || markets.length === 0) {
-      throw new Error('Nenhum mercado ativo expirando nas próximas 48h encontrado. Tente ampliar a janela de busca.');
+      throw new Error('Nenhum mercado ativo encontrado. Tente novamente em instantes.');
     }
     setProgress(60, markets.length + ' mercados encontrados. Filtrando oportunidades...');
     result = buildFromRaw(markets);
