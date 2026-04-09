@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/markets.py": {
-      "runtime": "vercel-python@3.0.7"
-    }
-  },
   "rewrites": [
     { "source": "/markets", "destination": "/api/markets" },
     { "source": "/", "destination": "/polymarket_barbell_scanner.html" }
