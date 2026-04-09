@@ -146,11 +146,10 @@ async function tryFetchMarkets() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     const arr = Array.isArray(d) ? d : (d.markets || d.data || []);
-    if (arr.length > 5) return arr;
+    return arr;
   } catch (e) {
     throw new Error('Servidor indisponível: ' + e.message);
   }
-  return null;
 }
 
 // ── Helpers de formatação ──
@@ -250,6 +249,9 @@ async function runScan() {
     setProgress(10, 'Tentando buscar mercados ao vivo do Polymarket...');
     const markets = await tryFetchMarkets();
 
+    if (!markets || markets.length === 0) {
+      throw new Error('Nenhum mercado ativo expirando nas próximas 48h encontrado. Tente ampliar a janela de busca.');
+    }
     setProgress(60, markets.length + ' mercados encontrados. Filtrando oportunidades...');
     result = buildFromRaw(markets);
 
