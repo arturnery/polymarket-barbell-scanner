@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/markets", "destination": "/api/markets" },
+    { "source": "/", "destination": "/polymarket_barbell_scanner.html" }
+  ]
+}
