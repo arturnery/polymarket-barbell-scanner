@@ -188,7 +188,7 @@ function buildFromRaw(markets) {
     const eventSlug = (m.events && m.events[0] && m.events[0].slug) ? m.events[0].slug : (m.slug || m.marketSlug || '');
     for (let i = 0; i < prices.length; i++) {
       const p = parseFloat(prices[i]);
-      if (isNaN(p) || p <= 0) continue;
+      if (isNaN(p) || p <= 0 || liq < 50) continue;
       if (p >= 0.95 && p < 0.998) {
         const y = ((1 - p) * 100).toFixed(2);
         opps.push({
@@ -200,7 +200,7 @@ function buildFromRaw(markets) {
           sizing: '$' + Math.round(Math.min(10000, Math.max(200, liq * 0.07))).toLocaleString('pt-BR'),
           rationale: 'Comprando YES a ' + (p * 100).toFixed(1) + '¢, o yield esperado e de ~' + y + '% sobre o capital. Atua como market maker de alta probabilidade. Risco: evento de cauda inesperado resolve NO e zera a posicao.'
         });
-      } else if (p <= 0.004 && p > 0 && liq > 100) {
+      } else if (p <= 0.004 && p > 0) {
         const mult = Math.round(1 / p);
         const bid = Math.max(0.05, liq * 0.001);
         opps.push({
@@ -215,8 +215,9 @@ function buildFromRaw(markets) {
       }
     }
   }
-  opps.sort((a, b) => parseFloat(b.liquidity || '0') - parseFloat(a.liquidity || '0'));
-  return { total_analyzed: markets.length, opportunities: opps.slice(0, 55) };
+  // Ordenar por expiração mais próxima
+  opps.sort((a, b) => pexp(a.end_date) - pexp(b.end_date));
+  return { total_analyzed: markets.length, opportunities: opps.slice(0, 100) };
 }
 
 function setProgress(pct, msg) {
